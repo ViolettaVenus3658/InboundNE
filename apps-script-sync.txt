@@ -1,0 +1,67 @@
+function doPost(e) {
+  try {
+    var body = (e && e.postData && e.postData.contents) ? e.postData.contents : '{}';
+    var data = JSON.parse(body);
+    var tipo = data.tipo || '';
+
+    if (tipo === 'estado') {
+      var estado = data.estado || {};
+      var payload = {
+        nfs: Array.isArray(estado.nfs) ? estado.nfs : [],
+        trucks: Array.isArray(estado.trucks) ? estado.trucks : [],
+        schedules: Array.isArray(estado.schedules) ? estado.schedules : []
+      };
+      PropertiesService.getScriptProperties().setProperty('INBOUND_ESTADO_JSON', JSON.stringify(payload));
+      return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
+    }
+
+    if (tipo === 'visao_geral') {
+      var sh1 = getOrCreateSheet_('Visao_Geral');
+      appendRows_(sh1, data.linhas || []);
+      return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
+    }
+
+    if (tipo === 'itens') {
+      var sh2 = getOrCreateSheet_('Itens');
+      appendRows_(sh2, data.linhas || []);
+      return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
+    }
+
+    return ContentService.createTextOutput('OK').setMimeType(ContentService.MimeType.TEXT);
+  } catch (err) {
+    return ContentService.createTextOutput('ERRO').setMimeType(ContentService.MimeType.TEXT);
+  }
+}
+
+function getOrCreateSheet_(name) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  return sh;
+}
+
+function appendRows_(sheet, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return;
+
+  var safeRows = rows
+    .filter(function (r) { return Array.isArray(r); })
+    .map(function (r) {
+      return r.map(function (c) { return c == null ? '' : String(c); });
+    });
+
+  if (safeRows.length === 0) return;
+
+  var startRow = sheet.getLastRow() + 1;
+  var maxCols = safeRows.reduce(function (acc, row) {
+    return Math.max(acc, row.length);
+  }, 0);
+
+  var normalizedRows = safeRows.map(function (row) {
+    if (row.length === maxCols) return row;
+    var copy = row.slice();
+    while (copy.length < maxCols) copy.push('');
+    return copy;
+  });
+
+  sheet.getRange(startRow, 1, normalizedRows.length, maxCols).setValues(normalizedRows);
+}
